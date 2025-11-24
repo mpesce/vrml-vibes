@@ -1,0 +1,50 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    Translation { translation -2 0 0 }
+    
+    # Wireframe Pyramid (IndexedLineSet)
+    Separator {
+        Coordinate3 {
+            point [
+                0 1 0,  # Top
+                -1 -1 1, # Front Left
+                1 -1 1,  # Front Right
+                1 -1 -1, # Back Right
+                -1 -1 -1 # Back Left
+            ]
+        }
+        
+        Material { diffuseColor 1 1 0 } # Yellow
+        
+        IndexedLineSet {
+            coordIndex [
+                0, 1, 2, 0, -1, # Front Face
+                0, 2, 3, 0, -1, # Right Face
+                0, 3, 4, 0, -1, # Back Face
+                0, 4, 1, 0, -1, # Left Face
+                1, 2, 3, 4, 1, -1 # Bottom Face
+            ]
+        }
+    }
+    
+    Translation { translation 4 0 0 }
+    
+    # Point Cloud (PointSet)
+    Separator {
+        Coordinate3 {
+            point [
+                0 0 0, 1 0 0, 0 1 0, 0 0 1,
+                1 1 0, 1 0 1, 0 1 1, 1 1 1
+            ]
+        }
+        
+        Material { diffuseColor 0 1 1 } # Cyan
+        
+        PointSet {
+            startIndex 0
+            numPoints -1
+        }
+    }
+}

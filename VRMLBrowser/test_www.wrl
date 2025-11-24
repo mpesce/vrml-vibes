@@ -1,0 +1,23 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    
+    Translation { translation -2 0 0 }
+    
+    WWWAnchor {
+        name "http://www.google.com"
+        description "Link to Google"
+        
+        Material { diffuseColor 0 1 0 }
+        Cube { width 1 height 1 depth 1 }
+    }
+    
+    Translation { translation 4 0 0 }
+    
+    WWWInline {
+        name "test_texture.wrl"
+        bboxSize 2 2 2
+        bboxCenter 0 0 0
+    }
+}

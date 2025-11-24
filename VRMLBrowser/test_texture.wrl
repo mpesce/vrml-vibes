@@ -1,0 +1,12 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 } # Headlight
+    
+    Separator {
+        Translation { translation 0 0 0 }
+        Texture2 { filename "test.jpg" }
+        Material { diffuseColor 1 1 1 } # White base for texture
+        Cube { width 2 height 2 depth 2 }
+    }
+}

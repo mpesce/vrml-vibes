@@ -1,0 +1,29 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    Translation { translation 0 0 0 }
+    
+    LOD {
+        range [ 5, 10 ]
+        center 0 0 0
+        
+        # Child 0: Distance < 5 (High Detail - Red Sphere)
+        Separator {
+            Material { diffuseColor 1 0 0 }
+            Sphere { radius 1 }
+        }
+        
+        # Child 1: 5 < Distance < 10 (Medium Detail - Green Cube)
+        Separator {
+            Material { diffuseColor 0 1 0 }
+            Cube { width 1.5 height 1.5 depth 1.5 }
+        }
+        
+        # Child 2: Distance > 10 (Low Detail - Blue Cone)
+        Separator {
+            Material { diffuseColor 0 0 1 }
+            Cone { bottomRadius 1 height 2 }
+        }
+    }
+}

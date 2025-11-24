@@ -1,0 +1,33 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    
+    Separator {
+        Translation { translation 0 0 -5 }
+        Texture2 { filename "test.jpg" }
+        
+        Coordinate3 {
+            point [
+                -2 -2 0,
+                 2 -2 0,
+                 2  2 0,
+                -2  2 0
+            ]
+        }
+        
+        TextureCoordinate2 {
+            point [
+                0 0,
+                1 0,
+                1 1,
+                0 1
+            ]
+        }
+        
+        IndexedFaceSet {
+            coordIndex [ 0, 1, 2, 3, -1 ]
+            textureCoordIndex [ 0, 1, 2, 3, -1 ]
+        }
+    }
+}
