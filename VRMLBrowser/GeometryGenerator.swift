@@ -71,6 +71,31 @@ class GeometryGenerator {
         return Mesh(vertexBuffer: buffer, vertexCount: vertices.count)
     }
     
+    static func createQuad(device: MTLDevice, width: Float, height: Float) -> Mesh? {
+        let w = width / 2
+        let h = height / 2
+        
+        // Flipped UVs to fix text orientation
+        // Bottom-Left (-w, -h) -> (0, 0)
+        // Top-Left (-w, h) -> (0, 1)
+        
+        let vertices: [ShaderVertexIn] = [
+            ShaderVertexIn(position: [-w, -h, 0, 1], normal: [0, 0, 1, 0], color: [1, 1, 1, 1], texCoord: [0, 0]),
+            ShaderVertexIn(position: [ w, -h, 0, 1], normal: [0, 0, 1, 0], color: [1, 1, 1, 1], texCoord: [1, 0]),
+            ShaderVertexIn(position: [ w,  h, 0, 1], normal: [0, 0, 1, 0], color: [1, 1, 1, 1], texCoord: [1, 1]),
+            
+            ShaderVertexIn(position: [-w, -h, 0, 1], normal: [0, 0, 1, 0], color: [1, 1, 1, 1], texCoord: [0, 0]),
+            ShaderVertexIn(position: [ w,  h, 0, 1], normal: [0, 0, 1, 0], color: [1, 1, 1, 1], texCoord: [1, 1]),
+            ShaderVertexIn(position: [-w,  h, 0, 1], normal: [0, 0, 1, 0], color: [1, 1, 1, 1], texCoord: [0, 1]),
+        ]
+        
+        guard let buffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<ShaderVertexIn>.stride, options: .storageModeShared) else {
+            return nil
+        }
+        
+        return Mesh(vertexBuffer: buffer, vertexCount: vertices.count)
+    }
+    
     static func createSphere(device: MTLDevice, radius: Float) -> Mesh? {
         let stacks = 20
         let slices = 20

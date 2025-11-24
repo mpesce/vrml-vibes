@@ -37,6 +37,13 @@ class Renderer: NSObject, MTKViewDelegate {
     var activeLights: [ShaderLight] = []
     var currentPointSize: Float = 1.0
     var currentIsUnlit: Int32 = 0
+    var currentFontStyle = VRMLFontStyle()
+    
+    // Viewpoints
+    var viewpoints: [VRMLNode] = []
+    var activeViewpointIndex: Int = -1
+    var onViewpointsChanged: (() -> Void)?
+    var onActiveViewpointChanged: ((Int) -> Void)?
     
     // Cache for geometry meshes to avoid recreating them every frame
     var meshCache: [UUID: Mesh] = [:]
@@ -108,6 +115,25 @@ class Renderer: NSObject, MTKViewDelegate {
             }
             print("Scene loaded successfully")
             self.meshCache.removeAll() // Clear cache for new scene
+            
+            // Reset state
+            activeLights = []
+            viewpoints = []
+            activeViewpointIndex = -1
+            
+            // Collect lights and viewpoints
+            collectLights(node: node, parentTransform: matrix_identity_float4x4)
+            collectViewpoints(node: node)
+            
+            // Notify UI
+            DispatchQueue.main.async {
+                self.onViewpointsChanged?()
+            }
+            
+            // Set default viewpoint if available
+            if !viewpoints.isEmpty {
+                setViewpoint(index: 0)
+            }
         } else {
             print("Failed to parse VRML file")
         }
@@ -130,6 +156,14 @@ class Renderer: NSObject, MTKViewDelegate {
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
         pipelineDescriptor.colorAttachments[0].pixelFormat = view.colorPixelFormat
+        pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+        pipelineDescriptor.colorAttachments[0].rgbBlendOperation = .add
+        pipelineDescriptor.colorAttachments[0].alphaBlendOperation = .add
+        pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        
         pipelineDescriptor.depthAttachmentPixelFormat = view.depthStencilPixelFormat
         
         do {
@@ -243,6 +277,77 @@ class Renderer: NSObject, MTKViewDelegate {
             for child in group.children {
                 collectLights(node: child, parentTransform: currentTransform)
             }
+        }
+    }
+    
+    private func collectViewpoints(node: VRMLNode) {
+        if let group = node as? VRMLGroupNode {
+            for child in group.children {
+                collectViewpoints(node: child)
+            }
+        } else if let lod = node as? VRMLLOD {
+            for child in lod.children {
+                collectViewpoints(node: child)
+            }
+        } else if let anchor = node as? VRMLWWWAnchor {
+            for child in anchor.children {
+                collectViewpoints(node: child)
+            }
+        } else if let inline = node as? VRMLWWWInline {
+            for child in inline.children {
+                collectViewpoints(node: child)
+            }
+        } else if let camera = node as? VRMLPerspectiveCamera {
+            viewpoints.append(camera)
+        } else if let camera = node as? VRMLOrthographicCamera {
+            viewpoints.append(camera)
+        }
+    }
+    
+    func setViewpoint(index: Int) {
+        guard index >= 0 && index < viewpoints.count else { return }
+        activeViewpointIndex = index
+        
+        // Notify UI
+        DispatchQueue.main.async {
+            self.onActiveViewpointChanged?(index)
+        }
+        
+        let node = viewpoints[index]
+        
+        if let pCam = node as? VRMLPerspectiveCamera {
+            camera.position = pCam.position
+            
+            // Convert VRML orientation (axis-angle) to Camera Euler angles
+            // Default VRML camera looks down -Z (0, 0, -1)
+            let rotationMatrix = Math.rotation(angle: pCam.orientation.w, axis: [pCam.orientation.x, pCam.orientation.y, pCam.orientation.z])
+            let defaultForward = simd_float4(0, 0, -1, 0)
+            let newForward = rotationMatrix * defaultForward
+            let forward = simd_normalize(simd_float3(newForward.x, newForward.y, newForward.z))
+            
+            // Extract pitch and yaw
+            // forward.y = -sin(pitch) => pitch = -asin(forward.y)
+            let pitch = -asin(max(-1.0, min(1.0, forward.y)))
+            
+            // forward.x = sin(yaw) * cos(pitch)
+            // forward.z = -cos(yaw) * cos(pitch)
+            // yaw = atan2(forward.x, -forward.z)
+            let yaw = atan2(forward.x, -forward.z)
+            
+            camera.rotation = [pitch, yaw, 0]
+        } else if let oCam = node as? VRMLOrthographicCamera {
+            camera.position = oCam.position
+            
+            // Same logic for OrthographicCamera
+            let rotationMatrix = Math.rotation(angle: oCam.orientation.w, axis: [oCam.orientation.x, oCam.orientation.y, oCam.orientation.z])
+            let defaultForward = simd_float4(0, 0, -1, 0)
+            let newForward = rotationMatrix * defaultForward
+            let forward = simd_normalize(simd_float3(newForward.x, newForward.y, newForward.z))
+            
+            let pitch = -asin(max(-1.0, min(1.0, forward.y)))
+            let yaw = atan2(forward.x, -forward.z)
+            
+            camera.rotation = [pitch, yaw, 0]
         }
     }
     
@@ -474,6 +579,71 @@ class Renderer: NSObject, MTKViewDelegate {
             }
             currentIsUnlit = 0
             currentPointSize = 1.0
+        }
+        
+        if let fontStyle = node as? VRMLFontStyle {
+            currentFontStyle = fontStyle
+        }
+        
+        if let asciiText = node as? VRMLAsciiText {
+            // Generate texture key
+            let key = "text_" + asciiText.id.uuidString
+            
+            var texture = textureCache[key]
+            if texture == nil {
+                texture = TextTextureGenerator.createTexture(device: device, text: asciiText.string, fontStyle: currentFontStyle, spacing: asciiText.spacing, justification: asciiText.justification)
+                if let t = texture {
+                    textureCache[key] = t
+                }
+            }
+            
+            if let texture = texture {
+                // Create quad with correct aspect ratio
+                let width = Float(texture.width)
+                let height = Float(texture.height)
+                let aspectRatio = width / height
+                
+                // Scale factor to make text size reasonable in world units
+                // VRML spec says size is height in units.
+                let size = currentFontStyle.size
+                let worldHeight = size * Float(asciiText.string.count) * asciiText.spacing // Rough approximation of total block height?
+                // Actually size is height of characters.
+                // Let's make the quad height = size * lines * spacing
+                // And width = height * aspectRatio
+                
+                // Simplified: Let's just make the quad height = size (for single line)
+                // For multi-line, height = size * lines * spacing
+                let lineCount = Float(asciiText.string.count)
+                let totalHeight = size * (lineCount + (lineCount - 1) * (asciiText.spacing - 1)) // spacing is factor of size
+                // VRML 1.0 spec: spacing is multiple of vertical size.
+                // Total height = lineCount * size * spacing?
+                
+                let quadHeight = size * lineCount * asciiText.spacing
+                let quadWidth = quadHeight * aspectRatio
+                
+                // Create quad mesh
+                // We can cache this mesh too, but it depends on font style which might change?
+                // Actually AsciiText depends on current FontStyle. If FontStyle changes, we might need to regenerate.
+                // But FontStyle is a property of the state when AsciiText is encountered.
+                
+                if let mesh = GeometryGenerator.createQuad(device: device, width: quadWidth, height: quadHeight) {
+                    
+                    let savedTexture = currentTexture
+                    let savedUnlit = currentIsUnlit
+                    
+                    currentTexture = texture
+                    currentIsUnlit = 1 // Text is usually self-illuminated or just flat color
+                    
+                    // Enable blending? Renderer pipeline needs to support blending for transparency.
+                    // Our current pipeline might not support blending.
+                    // We should check buildPipelineState.
+                    
+                    drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
+                    
+                    currentTexture = savedTexture
+                    currentIsUnlit = savedUnlit
+                }
+            }
         }
         
         if let cylinder = node as? VRMLCylinder {

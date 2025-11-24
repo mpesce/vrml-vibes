@@ -19,15 +19,33 @@ struct VRMLBrowserApp: App {
             }
             
             CommandMenu("Viewpoint") {
+                if !appState.viewpoints.isEmpty {
+                    ForEach(Array(appState.viewpoints.enumerated()), id: \.element.id) { index, node in
+                        Button(node.name.isEmpty ? "Viewpoint \(index + 1)" : node.name) {
+                            appState.targetViewpointIndex = index
+                        }
+                    }
+                    
+                    Divider()
+                }
+                
                 Button("Next Viewpoint") {
-                    // TODO: Implement Viewpoint switching
+                    if !appState.viewpoints.isEmpty {
+                        let nextIndex = (appState.activeViewpointIndex + 1) % appState.viewpoints.count
+                        appState.targetViewpointIndex = nextIndex
+                    }
                 }
                 .keyboardShortcut("]", modifiers: .command)
+                .disabled(appState.viewpoints.isEmpty)
                 
                 Button("Previous Viewpoint") {
-                    // TODO: Implement Viewpoint switching
+                    if !appState.viewpoints.isEmpty {
+                        let prevIndex = (appState.activeViewpointIndex - 1 + appState.viewpoints.count) % appState.viewpoints.count
+                        appState.targetViewpointIndex = prevIndex
+                    }
                 }
                 .keyboardShortcut("[", modifiers: .command)
+                .disabled(appState.viewpoints.isEmpty)
             }
             
             CommandMenu("Help") {

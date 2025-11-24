@@ -1,0 +1,28 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    
+    # Default Font (Sans)
+    Translation { translation -5 2 0 }
+    AsciiText { string "Default Sans" }
+    
+    # Serif Font
+    Translation { translation 0 -2 0 }
+    FontStyle { family SERIF size 2 style BOLD }
+    AsciiText { string "Serif Bold" }
+    
+    # Typewriter Font
+    Translation { translation 0 -2 0 }
+    FontStyle { family TYPEWRITER size 1.5 style ITALIC }
+    AsciiText { string "Typewriter Italic" }
+    
+    # Multi-line & Centered
+    Translation { translation 5 4 0 }
+    FontStyle { family SANS size 1 style NONE }
+    AsciiText {
+        string [ "Multi-line", "Centered", "Text" ]
+        justification CENTER
+        spacing 1.5
+    }
+}

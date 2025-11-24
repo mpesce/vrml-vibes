@@ -89,6 +89,14 @@ class VRMLParser {
             node = parseIndexedLineSet()
         case "PointSet":
             node = parsePointSet()
+        case "PerspectiveCamera":
+            node = parsePerspectiveCamera()
+        case "OrthographicCamera":
+            node = parseOrthographicCamera()
+        case "FontStyle":
+            node = parseFontStyle()
+        case "AsciiText":
+            node = parseAsciiText()
         default:
             print("Unknown node type: \(name)")
             // Skip block
@@ -319,6 +327,204 @@ class VRMLParser {
         }
         return node
     }
+    
+    private func parsePerspectiveCamera() -> VRMLPerspectiveCamera {
+        let node = VRMLPerspectiveCamera()
+        
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken() // Eat {
+            
+            while currentToken != .closeBrace && currentToken != .eof {
+                if case .identifier(let name) = currentToken {
+                    if name == "position" {
+                        currentToken = lexer.nextToken()
+                        node.position = parseVec3()
+                        continue
+                    } else if name == "orientation" {
+                        currentToken = lexer.nextToken()
+                        node.orientation = parseVec4()
+                        continue
+                    } else if name == "focalDistance" {
+                        currentToken = lexer.nextToken()
+                        if case .number(let val) = currentToken {
+                            node.focalDistance = Float(val)
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    } else if name == "heightAngle" {
+                        currentToken = lexer.nextToken()
+                        if case .number(let val) = currentToken {
+                            node.heightAngle = Float(val)
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    }
+                }
+                currentToken = lexer.nextToken()
+            }
+            
+            if currentToken == .closeBrace {
+                currentToken = lexer.nextToken() // Eat }
+            }
+        }
+        return node
+    }
+    
+    private func parseOrthographicCamera() -> VRMLOrthographicCamera {
+        let node = VRMLOrthographicCamera()
+        
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken() // Eat {
+            
+            while currentToken != .closeBrace && currentToken != .eof {
+                if case .identifier(let name) = currentToken {
+                    if name == "position" {
+                        currentToken = lexer.nextToken()
+                        node.position = parseVec3()
+                        continue
+                    } else if name == "orientation" {
+                        currentToken = lexer.nextToken()
+                        node.orientation = parseVec4()
+                        continue
+                    } else if name == "focalDistance" {
+                        currentToken = lexer.nextToken()
+                        if case .number(let val) = currentToken {
+                            node.focalDistance = Float(val)
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    } else if name == "height" {
+                        currentToken = lexer.nextToken()
+                        if case .number(let val) = currentToken {
+                            node.height = Float(val)
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    }
+                }
+                currentToken = lexer.nextToken()
+            }
+            
+            if currentToken == .closeBrace {
+                currentToken = lexer.nextToken() // Eat }
+            }
+        }
+        return node
+    }
+    
+    private func parseFontStyle() -> VRMLFontStyle {
+        let node = VRMLFontStyle()
+        
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken() // Eat {
+            
+            while currentToken != .closeBrace && currentToken != .eof {
+                if case .identifier(let name) = currentToken {
+                    if name == "size" {
+                        currentToken = lexer.nextToken()
+                        if case .number(let val) = currentToken {
+                            node.size = Float(val)
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    } else if name == "family" {
+                        currentToken = lexer.nextToken()
+                        if case .identifier(let val) = currentToken {
+                            node.family = val
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    } else if name == "style" {
+                        currentToken = lexer.nextToken()
+                        if case .identifier(let val) = currentToken {
+                            node.style = val
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    }
+                }
+                currentToken = lexer.nextToken()
+            }
+            
+            if currentToken == .closeBrace {
+                currentToken = lexer.nextToken() // Eat }
+            }
+        }
+        return node
+    }
+    
+    private func parseAsciiText() -> VRMLAsciiText {
+        let node = VRMLAsciiText()
+        
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken() // Eat {
+            
+            while currentToken != .closeBrace && currentToken != .eof {
+                if case .identifier(let name) = currentToken {
+                    if name == "string" {
+                        currentToken = lexer.nextToken()
+                        node.string = parseStringList()
+                        continue
+                    } else if name == "spacing" {
+                        currentToken = lexer.nextToken()
+                        if case .number(let val) = currentToken {
+                            node.spacing = Float(val)
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    } else if name == "justification" {
+                        currentToken = lexer.nextToken()
+                        if case .identifier(let val) = currentToken {
+                            node.justification = val
+                            currentToken = lexer.nextToken()
+                        }
+                        continue
+                    } else if name == "width" {
+                        currentToken = lexer.nextToken()
+                        node.width = parseFloatList()
+                        continue
+                    }
+                }
+                currentToken = lexer.nextToken()
+            }
+            
+            if currentToken == .closeBrace {
+                currentToken = lexer.nextToken() // Eat }
+            }
+        }
+        return node
+    }
+    
+    private func parseStringList() -> [String] {
+        var strings: [String] = []
+        
+        if currentToken == .openBracket {
+            currentToken = lexer.nextToken() // Eat [
+            
+            while currentToken != .closeBracket && currentToken != .eof {
+                if case .string(let val) = currentToken {
+                    strings.append(val)
+                    currentToken = lexer.nextToken()
+                } else if case .comma = currentToken {
+                    currentToken = lexer.nextToken()
+                } else {
+                    // Skip unknown or error
+                    currentToken = lexer.nextToken()
+                }
+            }
+            
+            if currentToken == .closeBracket {
+                currentToken = lexer.nextToken() // Eat ]
+            }
+        } else if case .string(let val) = currentToken {
+            strings.append(val)
+            currentToken = lexer.nextToken()
+        }
+        
+        return strings
+    }
+    
+
 
     private func parseIntList() -> [Int32] {
         if currentToken == .openBracket {

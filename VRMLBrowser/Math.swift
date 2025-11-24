@@ -30,6 +30,9 @@ struct Math {
     }
     
     static func rotation(angle: Float, axis: simd_float3) -> matrix_float4x4 {
+        if simd_length_squared(axis) < 1e-6 {
+            return matrix_identity_float4x4
+        }
         let unitAxis = simd_normalize(axis)
         let ct = cosf(angle)
         let st = sinf(angle)

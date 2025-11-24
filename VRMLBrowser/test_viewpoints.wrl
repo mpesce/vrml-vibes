@@ -1,0 +1,38 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    
+    DEF FrontView PerspectiveCamera {
+        position 0 0 10
+        focalDistance 10
+    }
+    
+    DEF TopView PerspectiveCamera {
+        position 0 10 0
+        orientation 1 0 0 -1.57
+        focalDistance 10
+    }
+    
+    DEF SideView PerspectiveCamera {
+        position 10 0 0
+        orientation 0 1 0 1.57
+        focalDistance 10
+    }
+    
+    DEF CloseUp PerspectiveCamera {
+        position 0 0 3
+        focalDistance 3
+    }
+    
+    Separator {
+        Material { diffuseColor 1 0 0 }
+        Cube { }
+    }
+    
+    Translation { translation 0 2 0 }
+    AsciiText { 
+        string "Viewpoints Test" 
+        justification CENTER
+    }
+}

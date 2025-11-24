@@ -45,18 +45,16 @@ fragmentShader(RasterizerData in [[stage_in]],
                sampler textureSampler [[sampler(0)]])
 {
     // If unlit, just return the color (vertex color or material diffuse)
+    // If unlit, just return the color (vertex color or material diffuse)
     if (uniforms.isUnlit) {
-        // Use vertex color if provided (alpha > 0), otherwise material diffuse
-        // But vertex color is always provided (default white/black).
-        // For lines/points, we set vertex color explicitly.
-        // For standard geometry, vertex color is set but might be ignored by lighting.
-        // Let's assume for unlit, we use in.color * material.diffuse (if texture not present)
-        
         float4 finalColor = in.color;
-        // If material diffuse is not black, modulate?
-        // VRML unlit usually means Emissive.
-        // But for IndexedLineSet, we want the color we passed.
-        // Let's just return in.color.
+        
+        // If texture is present, modulate with texture
+        if (uniforms.hasTexture) {
+            float4 texColor = diffuseTexture.sample(textureSampler, in.texCoord);
+            finalColor *= texColor;
+        }
+        
         return finalColor;
     }
 

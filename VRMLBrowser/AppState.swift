@@ -7,6 +7,10 @@ class AppState: ObservableObject {
     @Published var currentFileName: String = "Untitled"
     @Published var currentFileURL: URL?
     
+    @Published var viewpoints: [VRMLNode] = []
+    @Published var activeViewpointIndex: Int = -1
+    @Published var targetViewpointIndex: Int? // Used to signal renderer to switch
+    
     func openFile() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false

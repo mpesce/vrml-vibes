@@ -227,3 +227,46 @@ class VRMLPointSet: VRMLNode {
         super.init(typeName: "PointSet")
     }
 }
+
+class VRMLPerspectiveCamera: VRMLNode {
+    var position: simd_float3 = [0, 0, 1]
+    var orientation: simd_float4 = [0, 0, 1, 0]
+    var focalDistance: Float = 5.0
+    var heightAngle: Float = 0.785398
+    
+    init() {
+        super.init(typeName: "PerspectiveCamera")
+    }
+}
+
+class VRMLOrthographicCamera: VRMLNode {
+    var position: simd_float3 = [0, 0, 1]
+    var orientation: simd_float4 = [0, 0, 1, 0]
+    var focalDistance: Float = 5.0
+    var height: Float = 2.0
+    
+    init() {
+        super.init(typeName: "OrthographicCamera")
+    }
+}
+
+class VRMLFontStyle: VRMLNode {
+    var size: Float = 10.0
+    var family: String = "SERIF" // SERIF, SANS, TYPEWRITER
+    var style: String = "NONE" // NONE, BOLD, ITALIC
+    
+    init() {
+        super.init(typeName: "FontStyle")
+    }
+}
+
+class VRMLAsciiText: VRMLNode {
+    var string: [String] = []
+    var spacing: Float = 1.0
+    var justification: String = "LEFT" // LEFT, CENTER, RIGHT
+    var width: [Float] = []
+    
+    init() {
+        super.init(typeName: "AsciiText")
+    }
+}
