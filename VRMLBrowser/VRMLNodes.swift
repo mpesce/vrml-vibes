@@ -8,6 +8,7 @@ enum VRMLNodeType {
     case shape
     case light
     case camera
+    case switchNode
     case unknown
 }
 
@@ -32,6 +33,44 @@ class VRMLGroupNode: VRMLNode {
     
     override init(typeName: String = "Separator") {
         super.init(typeName: typeName)
+    }
+}
+
+class VRMLSwitch: VRMLGroupNode {
+    var whichChild: Int = -1
+    
+    init() {
+        super.init(typeName: "Switch")
+    }
+}
+
+
+
+class VRMLInfo: VRMLNode {
+    var string: String = ""
+    
+    init() {
+        super.init(typeName: "Info")
+    }
+}
+
+class VRMLGroup: VRMLGroupNode {
+    init() {
+        super.init(typeName: "Group")
+    }
+}
+
+class VRMLTransformSeparator: VRMLGroupNode {
+    init() {
+        super.init(typeName: "TransformSeparator")
+    }
+}
+
+class VRMLMatrixTransform: VRMLTransform {
+    var matrix: matrix_float4x4 = matrix_identity_float4x4
+    
+    init() {
+        super.init(typeName: "MatrixTransform")
     }
 }
 
@@ -84,8 +123,8 @@ class VRMLTransform: VRMLNode {
     var scaleOrientation: simd_float4 = [0, 0, 1, 0]
     var center: simd_float3 = [0, 0, 0]
     
-    init() {
-        super.init(typeName: "Transform")
+    override init(typeName: String = "Transform") {
+        super.init(typeName: typeName)
     }
 }
 
@@ -168,6 +207,80 @@ class VRMLTextureCoordinate2: VRMLNode {
     
     init() {
         super.init(typeName: "TextureCoordinate2")
+    }
+}
+
+
+class VRMLTexture2Transform: VRMLNode {
+    var translation: simd_float2 = [0, 0]
+    var rotation: Float = 0
+    var scaleFactor: simd_float2 = [1, 1]
+    var center: simd_float2 = [0, 0]
+    
+    init() {
+        super.init(typeName: "Texture2Transform")
+    }
+}
+
+class VRMLNormal: VRMLNode {
+    var vector: [simd_float3] = []
+    
+    init() {
+        super.init(typeName: "Normal")
+    }
+}
+
+enum VRMLBindingValue {
+    case DEFAULT
+    case OVERALL
+    case PER_PART
+    case PER_PART_INDEXED
+    case PER_FACE
+    case PER_FACE_INDEXED
+    case PER_VERTEX
+    case PER_VERTEX_INDEXED
+}
+
+class VRMLNormalBinding: VRMLNode {
+    var value: VRMLBindingValue = .DEFAULT
+    
+    init() {
+        super.init(typeName: "NormalBinding")
+    }
+}
+
+class VRMLMaterialBinding: VRMLNode {
+    var value: VRMLBindingValue = .DEFAULT
+    
+    init() {
+        super.init(typeName: "MaterialBinding")
+    }
+}
+
+enum VRMLVertexOrdering {
+    case UNKNOWN_ORDERING
+    case CLOCKWISE
+    case COUNTERCLOCKWISE
+}
+
+enum VRMLShapeType {
+    case UNKNOWN_SHAPE_TYPE
+    case SOLID
+}
+
+enum VRMLFaceType {
+    case UNKNOWN_FACE_TYPE
+    case CONVEX
+}
+
+class VRMLShapeHints: VRMLNode {
+    var vertexOrdering: VRMLVertexOrdering = .UNKNOWN_ORDERING
+    var shapeType: VRMLShapeType = .UNKNOWN_SHAPE_TYPE
+    var faceType: VRMLFaceType = .CONVEX
+    var creaseAngle: Float = 0.5
+    
+    init() {
+        super.init(typeName: "ShapeHints")
     }
 }
 class VRMLWWWAnchor: VRMLGroupNode {

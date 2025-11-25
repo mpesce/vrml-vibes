@@ -79,6 +79,16 @@ class VRMLParser {
             node = parseTexture2()
         case "TextureCoordinate2":
             node = parseTextureCoordinate2()
+        case "Switch":
+            node = parseSwitch()
+        case "Info":
+            node = parseInfo()
+        case "Group":
+            node = parseGroup()
+        case "TransformSeparator":
+            node = parseTransformSeparator()
+        case "MatrixTransform":
+            node = parseMatrixTransform()
         case "WWWAnchor":
             node = parseWWWAnchor()
         case "WWWInline":
@@ -95,6 +105,16 @@ class VRMLParser {
             node = parseOrthographicCamera()
         case "FontStyle":
             node = parseFontStyle()
+        case "Texture2Transform":
+            node = parseTexture2Transform()
+        case "Normal":
+            node = parseNormal()
+        case "NormalBinding":
+            node = parseNormalBinding()
+        case "MaterialBinding":
+            node = parseMaterialBinding()
+        case "ShapeHints":
+            node = parseShapeHints()
         case "AsciiText":
             node = parseAsciiText()
         default:
@@ -893,4 +913,229 @@ class VRMLParser {
             return [parseVec3()]
         }
     }
+    private func parseSwitch() -> VRMLSwitch {
+        let node = VRMLSwitch()
+        
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken() // Eat {
+            
+            while currentToken != .closeBrace && currentToken != .eof {
+                // Check for fields
+                var handled = false
+                if case .identifier(let name) = currentToken {
+                    if name == "whichChild" {
+                        currentToken = lexer.nextToken() // Eat name
+                        node.whichChild = parseInt()
+                        handled = true
+                    }
+                }
+                
+                if !handled {
+                    // Parse children
+                    if let child = parseNode() {
+                        node.children.append(child)
+                    } else {
+                        // Skip unknown
+                        currentToken = lexer.nextToken()
+                    }
+                }
+            }
+            
+            if currentToken == .closeBrace {
+                currentToken = lexer.nextToken() // Eat }
+            }
+        }
+        
+        return node
+    }
+    
+    private func parseInfo() -> VRMLInfo {
+        let node = VRMLInfo()
+        parseFields { fieldName in
+            switch fieldName {
+            case "string": node.string = parseString()
+            default: break
+            }
+        }
+        return node
+    }
+    
+    private func parseGroup() -> VRMLGroup {
+        let node = VRMLGroup()
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken()
+            while currentToken != .closeBrace && currentToken != .eof {
+                if let child = parseNode() {
+                    node.children.append(child)
+                } else {
+                    currentToken = lexer.nextToken()
+                }
+            }
+            if currentToken == .closeBrace { currentToken = lexer.nextToken() }
+        }
+        return node
+    }
+    
+    private func parseTransformSeparator() -> VRMLTransformSeparator {
+        let node = VRMLTransformSeparator()
+        if currentToken == .openBrace {
+            currentToken = lexer.nextToken()
+            while currentToken != .closeBrace && currentToken != .eof {
+                if let child = parseNode() {
+                    node.children.append(child)
+                } else {
+                    currentToken = lexer.nextToken()
+                }
+            }
+            if currentToken == .closeBrace { currentToken = lexer.nextToken() }
+        }
+        return node
+    }
+    
+    private func parseMatrixTransform() -> VRMLMatrixTransform {
+        let node = VRMLMatrixTransform()
+        parseFields { fieldName in
+            switch fieldName {
+            case "matrix":
+                var floats: [Float] = []
+                for _ in 0..<16 {
+                    floats.append(parseFloat())
+                }
+                if floats.count == 16 {
+                    let col0 = simd_float4(floats[0], floats[1], floats[2], floats[3])
+                    let col1 = simd_float4(floats[4], floats[5], floats[6], floats[7])
+                    let col2 = simd_float4(floats[8], floats[9], floats[10], floats[11])
+                    let col3 = simd_float4(floats[12], floats[13], floats[14], floats[15])
+                    node.matrix = matrix_float4x4(columns: (col0, col1, col2, col3))
+                }
+            default: break
+            }
+        }
+        return node
+    }
+    
+    private func parseTexture2Transform() -> VRMLTexture2Transform {
+        let node = VRMLTexture2Transform()
+        parseFields { fieldName in
+            switch fieldName {
+            case "translation": node.translation = parseVec2()
+            case "rotation": node.rotation = parseFloat()
+            case "scaleFactor": node.scaleFactor = parseVec2()
+            case "center": node.center = parseVec2()
+            default: break
+            }
+        }
+        return node
+    }
+    
+    private func parseNormal() -> VRMLNormal {
+        let node = VRMLNormal()
+        parseFields { fieldName in
+            switch fieldName {
+            case "vector":
+                if currentToken == .openBracket {
+                    currentToken = lexer.nextToken()
+                    while currentToken != .closeBracket && currentToken != .eof {
+                        node.vector.append(parseVec3())
+                        if currentToken == .comma { currentToken = lexer.nextToken() }
+                    }
+                    if currentToken == .closeBracket { currentToken = lexer.nextToken() }
+                } else {
+                    node.vector.append(parseVec3())
+                }
+            default: break
+            }
+        }
+        return node
+    }
+    
+    private func parseNormalBinding() -> VRMLNormalBinding {
+        let node = VRMLNormalBinding()
+        parseFields { fieldName in
+            switch fieldName {
+            case "value":
+                if case .identifier(let val) = currentToken {
+                    switch val {
+                    case "DEFAULT": node.value = .DEFAULT
+                    case "OVERALL": node.value = .OVERALL
+                    case "PER_PART": node.value = .PER_PART
+                    case "PER_PART_INDEXED": node.value = .PER_PART_INDEXED
+                    case "PER_FACE": node.value = .PER_FACE
+                    case "PER_FACE_INDEXED": node.value = .PER_FACE_INDEXED
+                    case "PER_VERTEX": node.value = .PER_VERTEX
+                    case "PER_VERTEX_INDEXED": node.value = .PER_VERTEX_INDEXED
+                    default: break
+                    }
+                    currentToken = lexer.nextToken()
+                }
+            default: break
+            }
+        }
+        return node
+    }
+    
+    private func parseMaterialBinding() -> VRMLMaterialBinding {
+        let node = VRMLMaterialBinding()
+        parseFields { fieldName in
+            switch fieldName {
+            case "value":
+                if case .identifier(let val) = currentToken {
+                    switch val {
+                    case "DEFAULT": node.value = .DEFAULT
+                    case "OVERALL": node.value = .OVERALL
+                    case "PER_PART": node.value = .PER_PART
+                    case "PER_PART_INDEXED": node.value = .PER_PART_INDEXED
+                    case "PER_FACE": node.value = .PER_FACE
+                    case "PER_FACE_INDEXED": node.value = .PER_FACE_INDEXED
+                    case "PER_VERTEX": node.value = .PER_VERTEX
+                    case "PER_VERTEX_INDEXED": node.value = .PER_VERTEX_INDEXED
+                    default: break
+                    }
+                    currentToken = lexer.nextToken()
+                }
+            default: break
+            }
+        }
+        return node
+    }
+    
+    private func parseShapeHints() -> VRMLShapeHints {
+        let node = VRMLShapeHints()
+        parseFields { fieldName in
+            switch fieldName {
+            case "vertexOrdering":
+                if case .identifier(let val) = currentToken {
+                    switch val {
+                    case "UNKNOWN_ORDERING": node.vertexOrdering = .UNKNOWN_ORDERING
+                    case "CLOCKWISE": node.vertexOrdering = .CLOCKWISE
+                    case "COUNTERCLOCKWISE": node.vertexOrdering = .COUNTERCLOCKWISE
+                    default: break
+                    }
+                    currentToken = lexer.nextToken()
+                }
+            case "shapeType":
+                if case .identifier(let val) = currentToken {
+                    switch val {
+                    case "UNKNOWN_SHAPE_TYPE": node.shapeType = .UNKNOWN_SHAPE_TYPE
+                    case "SOLID": node.shapeType = .SOLID
+                    default: break
+                    }
+                    currentToken = lexer.nextToken()
+                }
+            case "faceType":
+                if case .identifier(let val) = currentToken {
+                    switch val {
+                    case "UNKNOWN_FACE_TYPE": node.faceType = .UNKNOWN_FACE_TYPE
+                    case "CONVEX": node.faceType = .CONVEX
+                    default: break
+                    }
+                    currentToken = lexer.nextToken()
+                }
+            case "creaseAngle": node.creaseAngle = parseFloat()
+            default: break
+            }
+        }
+        return node
+    }
 }
+

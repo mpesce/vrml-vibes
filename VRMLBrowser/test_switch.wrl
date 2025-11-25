@@ -1,0 +1,28 @@
+#VRML V1.0 ascii
+
+Separator {
+    DirectionalLight { direction 0 0 -1 }
+    PerspectiveCamera { position 0 0 10 }
+
+    Switch {
+        whichChild 0
+        
+        # Child 0: Red Cube
+        Separator {
+            Material { diffuseColor 1 0 0 }
+            Cube { }
+        }
+        
+        # Child 1: Green Sphere
+        Separator {
+            Material { diffuseColor 0 1 0 }
+            Sphere { }
+        }
+        
+        # Child 2: Blue Cone
+        Separator {
+            Material { diffuseColor 0 0 1 }
+            Cone { }
+        }
+    }
+}

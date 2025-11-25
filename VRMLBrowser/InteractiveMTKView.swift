@@ -34,6 +34,6 @@ class InteractiveMTKView: MTKView {
     }
     
     override func keyDown(with event: NSEvent) {
-        // Handle keys if needed
+        renderer?.handleKeyDown(with: event.keyCode)
     }
 }

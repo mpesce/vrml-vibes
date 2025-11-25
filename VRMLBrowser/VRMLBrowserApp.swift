@@ -16,6 +16,11 @@ struct VRMLBrowserApp: App {
                     appState.openFile()
                 }
                 .keyboardShortcut("o", modifiers: .command)
+                
+                Button("Open URL...") {
+                    appState.openURL()
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
             }
             
             CommandMenu("Viewpoint") {

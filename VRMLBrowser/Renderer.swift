@@ -16,28 +16,28 @@ class Renderer: NSObject, MTKViewDelegate {
     
     // Texture State
     var textureLoader: MTKTextureLoader!
-    var currentTexture: MTLTexture?
+
     var textureCache: [String: MTLTexture] = [:]
     
     // State for traversal
-    var currentMaterial = ShaderMaterial(
-        diffuseColor: [0.8, 0.8, 0.8],
-        ambientColor: [0.2, 0.2, 0.2],
-        specularColor: [0, 0, 0],
-        emissiveColor: [0, 0, 0],
-        shininess: 0.2,
-        transparency: 0,
-        _pad: [0, 0]
-    )
+
+    private var currentMaterial = ShaderMaterial()
+    private var currentMaterialNode: VRMLMaterial?
+    private var currentTexture: MTLTexture?
+    private var currentCoordinates: [simd_float3] = []
+    private var currentTextureCoordinates: [simd_float2] = []
+    private var currentTextureTransform: matrix_float4x4 = matrix_identity_float4x4
+    private var currentNormals: [simd_float3] = []
+    private var currentNormalBinding: VRMLBindingValue = .DEFAULT
+    private var currentMaterialBinding: VRMLBindingValue = .DEFAULT
+    private var currentShapeHints: VRMLShapeHints?
     
-    var currentCoordinates: [simd_float3] = []
-    var currentTextureCoordinates: [simd_float2] = []
     var basePath: URL? // Base path for resolving relative URLs
     
     var activeLights: [ShaderLight] = []
-    var currentPointSize: Float = 1.0
-    var currentIsUnlit: Int32 = 0
-    var currentFontStyle = VRMLFontStyle()
+    private var currentPointSize: Float = 1.0
+    private var currentIsUnlit: Int32 = 0
+    private var currentFontStyle: VRMLFontStyle = VRMLFontStyle()
     
     // Viewpoints
     var viewpoints: [VRMLNode] = []
@@ -88,6 +88,22 @@ class Renderer: NSObject, MTKViewDelegate {
         // Zoom / Move forward
         let sensitivity: Float = 0.1
         camera.position += camera.forward * Float(deltaY) * sensitivity
+    }
+    
+    func handleKeyDown(with keyCode: UInt16) {
+        let speed: Float = 0.5
+        switch keyCode {
+        case 126: // Up Arrow
+            camera.position += camera.forward * speed
+        case 125: // Down Arrow
+            camera.position -= camera.forward * speed
+        case 124: // Right Arrow
+            camera.position += camera.right * speed
+        case 123: // Left Arrow
+            camera.position -= camera.right * speed
+        default:
+            break
+        }
     }
     
     func loadTestScene() {
@@ -351,10 +367,13 @@ class Renderer: NSObject, MTKViewDelegate {
         }
     }
     
-    private func renderNode(_ node: VRMLNode, encoder: MTLRenderCommandEncoder, parentTransform: matrix_float4x4, viewMatrix: matrix_float4x4, projectionMatrix: matrix_float4x4) {
+    @discardableResult
+    private func renderNode(_ node: VRMLNode, encoder: MTLRenderCommandEncoder, parentTransform: matrix_float4x4, viewMatrix: matrix_float4x4, projectionMatrix: matrix_float4x4) -> matrix_float4x4 {
         var currentTransform = parentTransform
         
-        if let transform = node as? VRMLTransform {
+        if let matrixTransform = node as? VRMLMatrixTransform {
+            currentTransform = parentTransform * matrixTransform.matrix
+        } else if let transform = node as? VRMLTransform {
             let t = Math.translation(transform.translation)
             let r = Math.rotation(angle: transform.rotation.w, axis: [transform.rotation.x, transform.rotation.y, transform.rotation.z])
             let s = Math.scale(transform.scaleFactor)
@@ -395,6 +414,7 @@ class Renderer: NSObject, MTKViewDelegate {
         }
         
         if let material = node as? VRMLMaterial {
+            currentMaterialNode = material
             // Update current material state
             if !material.diffuseColor.isEmpty { currentMaterial.diffuseColor = material.diffuseColor[0] }
             if !material.ambientColor.isEmpty { currentMaterial.ambientColor = material.ambientColor[0] }
@@ -404,40 +424,117 @@ class Renderer: NSObject, MTKViewDelegate {
             if !material.transparency.isEmpty { currentMaterial.transparency = material.transparency[0] }
         }
         
-        if let group = node as? VRMLGroupNode, !(node is VRMLLOD), !(node is VRMLWWWAnchor), !(node is VRMLWWWInline) {
+        if let texTransform = node as? VRMLTexture2Transform {
+            let t = Math.translation(simd_float3(texTransform.translation.x, texTransform.translation.y, 0))
+            let r = Math.rotation(angle: texTransform.rotation, axis: [0, 0, 1])
+            let s = Math.scale(simd_float3(texTransform.scaleFactor.x, texTransform.scaleFactor.y, 1))
+            let c = Math.translation(simd_float3(texTransform.center.x, texTransform.center.y, 0))
+            let negC = Math.translation(simd_float3(-texTransform.center.x, -texTransform.center.y, 0))
+            
+            // Transform = T * C * R * S * -C
+            currentTextureTransform = currentTextureTransform * t * c * r * s * negC
+        }
+        
+        if let normal = node as? VRMLNormal {
+            currentNormals = normal.vector
+        }
+        
+        if let normalBinding = node as? VRMLNormalBinding {
+            currentNormalBinding = normalBinding.value
+        }
+        
+        if let materialBinding = node as? VRMLMaterialBinding {
+            currentMaterialBinding = materialBinding.value
+        }
+        
+        if let shapeHints = node as? VRMLShapeHints {
+            currentShapeHints = shapeHints
+        }
+        
+        if let group = node as? VRMLGroupNode, !(node is VRMLLOD), !(node is VRMLWWWAnchor), !(node is VRMLWWWInline), !(node is VRMLSwitch) {
             let savedMaterial = currentMaterial
+            let savedMaterialNode = currentMaterialNode
             let savedCoordinates = currentCoordinates
             let savedTextureCoordinates = currentTextureCoordinates
             let savedTexture = currentTexture
+            let savedTextureTransform = currentTextureTransform
+            let savedNormals = currentNormals
+            let savedNormalBinding = currentNormalBinding
+            let savedMaterialBinding = currentMaterialBinding
+            let savedShapeHints = currentShapeHints
             
             var groupTransform = currentTransform
             
             for child in group.children {
-                if let transform = child as? VRMLTransform {
-                    let t = Math.translation(transform.translation)
-                    let r = Math.rotation(angle: transform.rotation.w, axis: [transform.rotation.x, transform.rotation.y, transform.rotation.z])
-                    let s = Math.scale(transform.scaleFactor)
-                    groupTransform = groupTransform * t * r * s
-                }
-                
-                renderNode(child, encoder: encoder, parentTransform: groupTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
+                let newTransform = renderNode(child, encoder: encoder, parentTransform: groupTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
+                groupTransform = newTransform
             }
             
             if node is VRMLGroupNode && node.typeName == "Separator" {
                 currentMaterial = savedMaterial
+                currentMaterialNode = savedMaterialNode
                 currentCoordinates = savedCoordinates
                 currentTextureCoordinates = savedTextureCoordinates
                 currentTexture = savedTexture
+                currentTextureTransform = savedTextureTransform
+                currentNormals = savedNormals
+                currentNormalBinding = savedNormalBinding
+                currentMaterialBinding = savedMaterialBinding
+                currentShapeHints = savedShapeHints
             }
+            
+            // If Group, leak transform changes to caller
+            if node.typeName == "Group" {
+                currentTransform = groupTransform
+            }
+        }
+        
+        if let switchNode = node as? VRMLSwitch {
+            let savedMaterial = currentMaterial
+            let savedMaterialNode = currentMaterialNode
+            let savedCoordinates = currentCoordinates
+            let savedTextureCoordinates = currentTextureCoordinates
+            let savedTexture = currentTexture
+            let savedTextureTransform = currentTextureTransform
+            let savedNormals = currentNormals
+            let savedNormalBinding = currentNormalBinding
+            let savedMaterialBinding = currentMaterialBinding
+            let savedShapeHints = currentShapeHints
+            
+            var groupTransform = currentTransform
+            
+            // Only render the selected child
+            if switchNode.whichChild >= 0 && switchNode.whichChild < switchNode.children.count {
+                let child = switchNode.children[switchNode.whichChild]
+                renderNode(child, encoder: encoder, parentTransform: groupTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
+            }
+            
+            // Restore state (Switch behaves like a Separator)
+            currentMaterial = savedMaterial
+            currentMaterialNode = savedMaterialNode
+            currentCoordinates = savedCoordinates
+            currentTextureCoordinates = savedTextureCoordinates
+            currentTexture = savedTexture
+            currentTextureTransform = savedTextureTransform
+            currentNormals = savedNormals
+            currentNormalBinding = savedNormalBinding
+            currentMaterialBinding = savedMaterialBinding
+            currentShapeHints = savedShapeHints
         }
         
         if let anchor = node as? VRMLWWWAnchor {
             // WWWAnchor behaves like a Separator/Group but with a link
             // For now, just render children. Interaction will be added later.
             let savedMaterial = currentMaterial
+            let savedMaterialNode = currentMaterialNode
             let savedCoordinates = currentCoordinates
             let savedTextureCoordinates = currentTextureCoordinates
             let savedTexture = currentTexture
+            let savedTextureTransform = currentTextureTransform
+            let savedNormals = currentNormals
+            let savedNormalBinding = currentNormalBinding
+            let savedMaterialBinding = currentMaterialBinding
+            let savedShapeHints = currentShapeHints
             
             var groupTransform = currentTransform
             
@@ -454,9 +551,15 @@ class Renderer: NSObject, MTKViewDelegate {
             
             // Restore state (WWWAnchor acts as a Separator usually)
             currentMaterial = savedMaterial
+            currentMaterialNode = savedMaterialNode
             currentCoordinates = savedCoordinates
             currentTextureCoordinates = savedTextureCoordinates
             currentTexture = savedTexture
+            currentTextureTransform = savedTextureTransform
+            currentNormals = savedNormals
+            currentNormalBinding = savedNormalBinding
+            currentMaterialBinding = savedMaterialBinding
+            currentShapeHints = savedShapeHints
         }
         
         if let inline = node as? VRMLWWWInline {
@@ -466,9 +569,15 @@ class Renderer: NSObject, MTKViewDelegate {
             } else if inline.status == .loaded {
                 // Render loaded children
                 let savedMaterial = currentMaterial
+                let savedMaterialNode = currentMaterialNode
                 let savedCoordinates = currentCoordinates
                 let savedTextureCoordinates = currentTextureCoordinates
                 let savedTexture = currentTexture
+                let savedTextureTransform = currentTextureTransform
+                let savedNormals = currentNormals
+                let savedNormalBinding = currentNormalBinding
+                let savedMaterialBinding = currentMaterialBinding
+                let savedShapeHints = currentShapeHints
                 
                 var groupTransform = currentTransform
                 
@@ -484,9 +593,15 @@ class Renderer: NSObject, MTKViewDelegate {
                 }
                 
                 currentMaterial = savedMaterial
+                currentMaterialNode = savedMaterialNode
                 currentCoordinates = savedCoordinates
                 currentTextureCoordinates = savedTextureCoordinates
                 currentTexture = savedTexture
+                currentTextureTransform = savedTextureTransform
+                currentNormals = savedNormals
+                currentNormalBinding = savedNormalBinding
+                currentMaterialBinding = savedMaterialBinding
+                currentShapeHints = savedShapeHints
             }
         }
         
@@ -518,7 +633,7 @@ class Renderer: NSObject, MTKViewDelegate {
         if let cube = node as? VRMLCube {
             if let mesh = meshCache[cube.id] {
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
-            } else if let mesh = GeometryGenerator.createCube(device: device, width: cube.width, height: cube.height, depth: cube.depth) {
+            } else if let mesh = GeometryGenerator.createCube(device: device, width: cube.width, height: cube.height, depth: cube.depth, diffuseColors: currentMaterialNode?.diffuseColor ?? [currentMaterial.diffuseColor]) {
                 meshCache[cube.id] = mesh
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
             }
@@ -527,7 +642,7 @@ class Renderer: NSObject, MTKViewDelegate {
         if let sphere = node as? VRMLSphere {
             if let mesh = meshCache[sphere.id] {
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
-            } else if let mesh = GeometryGenerator.createSphere(device: device, radius: sphere.radius) {
+            } else if let mesh = GeometryGenerator.createSphere(device: device, radius: sphere.radius, diffuseColors: currentMaterialNode?.diffuseColor ?? [currentMaterial.diffuseColor]) {
                 meshCache[sphere.id] = mesh
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
             }
@@ -536,7 +651,7 @@ class Renderer: NSObject, MTKViewDelegate {
         if let cone = node as? VRMLCone {
             if let mesh = meshCache[cone.id] {
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
-            } else if let mesh = GeometryGenerator.createCone(device: device, bottomRadius: cone.bottomRadius, height: cone.height) {
+            } else if let mesh = GeometryGenerator.createCone(device: device, bottomRadius: cone.bottomRadius, height: cone.height, diffuseColors: currentMaterialNode?.diffuseColor ?? [currentMaterial.diffuseColor]) {
                 meshCache[cone.id] = mesh
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
             }
@@ -545,7 +660,7 @@ class Renderer: NSObject, MTKViewDelegate {
         if let cylinder = node as? VRMLCylinder {
             if let mesh = meshCache[cylinder.id] {
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
-            } else if let mesh = GeometryGenerator.createCylinder(device: device, radius: cylinder.radius, height: cylinder.height) {
+            } else if let mesh = GeometryGenerator.createCylinder(device: device, radius: cylinder.radius, height: cylinder.height, diffuseColors: currentMaterialNode?.diffuseColor ?? [currentMaterial.diffuseColor]) {
                 meshCache[cylinder.id] = mesh
                 drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
             }
@@ -626,7 +741,8 @@ class Renderer: NSObject, MTKViewDelegate {
                 // Actually AsciiText depends on current FontStyle. If FontStyle changes, we might need to regenerate.
                 // But FontStyle is a property of the state when AsciiText is encountered.
                 
-                if let mesh = GeometryGenerator.createQuad(device: device, width: quadWidth, height: quadHeight) {
+                let colors = currentMaterialNode?.diffuseColor ?? [currentMaterial.diffuseColor]
+                if let mesh = GeometryGenerator.createQuadColored(device: device, width: quadWidth, height: quadHeight, diffuseColors: colors) {
                     
                     let savedTexture = currentTexture
                     let savedUnlit = currentIsUnlit
@@ -672,13 +788,23 @@ class Renderer: NSObject, MTKViewDelegate {
                     coordIndex: ifs.coordIndex,
                     coordinates: currentCoordinates,
                     textureCoordIndex: ifs.textureCoordIndex,
-                    textureCoordinates: currentTextureCoordinates
+                    textureCoordinates: currentTextureCoordinates,
+                    normalIndex: ifs.normalIndex,
+                    normals: currentNormals,
+                    normalBinding: currentNormalBinding,
+                    materialIndex: ifs.materialIndex,
+                    materialBinding: currentMaterialBinding,
+                    diffuseColors: currentMaterialNode?.diffuseColor ?? [currentMaterial.diffuseColor],
+                    shapeHints: currentShapeHints
                 ) {
                     meshCache[ifs.id] = mesh
                     drawMesh(mesh, encoder: encoder, modelMatrix: currentTransform, viewMatrix: viewMatrix, projectionMatrix: projectionMatrix)
                 }
             }
         }
+
+        
+        return currentTransform
     }
     
     private func drawMesh(_ mesh: Mesh, encoder: MTLRenderCommandEncoder, modelMatrix: matrix_float4x4, viewMatrix: matrix_float4x4, projectionMatrix: matrix_float4x4) {
@@ -693,6 +819,7 @@ class Renderer: NSObject, MTKViewDelegate {
             projectionMatrix: projectionMatrix,
             modelViewMatrix: modelView,
             normalMatrix: normalMatrix,
+            textureTransform: currentTextureTransform,
             material: currentMaterial,
             lightCount: Int32(activeLights.count),
             hasTexture: currentTexture != nil ? 1 : 0,

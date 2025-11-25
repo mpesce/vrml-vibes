@@ -31,7 +31,10 @@ vertexShader(uint vertexID [[vertex_id]],
     out.normal = normalize(uniforms.normalMatrix * normal);
     
     out.color = vertices[vertexID].color;
-    out.texCoord = vertices[vertexID].texCoord;
+    
+    // Transform texture coordinates
+    float4 texCoord = float4(vertices[vertexID].texCoord.x, vertices[vertexID].texCoord.y, 0, 1);
+    out.texCoord = (uniforms.textureTransform * texCoord).xy;
     out.pointSize = uniforms.pointSize;
     
     return out;
@@ -61,7 +64,7 @@ fragmentShader(RasterizerData in [[stage_in]],
     float3 N = normalize(in.normal);
     float3 V = normalize(-in.worldPosition); // View direction
     
-    float3 baseColor = uniforms.material.diffuseColor;
+    float3 baseColor = in.color.rgb;
     float alpha = 1.0 - uniforms.material.transparency;
     
     if (uniforms.hasTexture) {

@@ -31,6 +31,7 @@ struct ShaderUniforms {
     var projectionMatrix: matrix_float4x4
     var modelViewMatrix: matrix_float4x4
     var normalMatrix: matrix_float3x3
+    var textureTransform: matrix_float4x4
     var material: ShaderMaterial
     var lightCount: Int32
     var hasTexture: Int32
