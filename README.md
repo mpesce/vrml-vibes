@@ -10,6 +10,6 @@ And here it is.
 So far this has taken a few evenings with Google Antigravity and Gemini Pro 3.
 It's written the code. I've been doing the debugging. 😑
 
-The basic prompt fed Antigravity the [VRML 1.0 Specification(https://paulbourke.net/dataformats/vrml1/)] with an instruction to target macOS and Metal.
+The basic prompt fed Antigravity the [VRML 1.0 Specification](https://paulbourke.net/dataformats/vrml1/) with an instruction to target macOS and Metal.
 After that it was steering, testing, and basically being a pipe between Antigravity and Xcode.
 
